@@ -35,26 +35,28 @@
       }
     }
 
-    initializeMap() {
-      const mapContainer = this._shadowRoot.getElementById('map');
-      const map = L.map(mapContainer).setView([50.64, 6.25], 12);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap'
-      }).addTo(map);
+initializeMap() {
+  const mapContainer = this._shadowRoot.getElementById('map');
+  const map = L.map(mapContainer).setView([48.5, 9], 7); // Mittelpunkt von BaWü
 
-      // Beispiel-Polygon
-      const polygon = {
-        "type": "Feature",
-        "geometry": {
-          "type": "Polygon",
-          "coordinates": [[
-            [6.25, 50.636],
-            [6.26, 50.637],
-            [6.27, 50.635],
-            [6.25, 50.636]
-          ]]
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap'
+  }).addTo(map);
+
+  // ➕ Hier: GeoJSON-Datei laden und anzeigen
+  fetch('https://raw.githubusercontent.com/Benne2000/CustomGeoMap/main/BaWue.geojson')
+    .then(response => response.json())
+    .then(data => {
+      L.geoJSON(data, {
+        style: {
+          color: "darkgreen",
+          weight: 1,
+          fillOpacity: 0.4
         }
-      };
+      }).addTo(map);
+    });
+}
+
 
       L.geoJSON(polygon, {
         style: { color: "blue", weight: 2, fillOpacity: 0.4 }
