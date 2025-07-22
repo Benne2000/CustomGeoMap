@@ -37,31 +37,46 @@
 
 initializeMap() {
   const mapContainer = this._shadowRoot.getElementById('map');
-  const map = L.map(mapContainer).setView([48.5, 9], 7); // Mittelpunkt von BaWü
+  const map = L.map(mapContainer).setView([48.5, 9], 7);
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© OpenStreetMap'
   }).addTo(map);
 
-  // ➕ Hier: GeoJSON-Datei laden und anzeigen
-  fetch('https://github.com/Benne2000/CustomGeoMap/main/BaWue.geojson')
-    .then(response => response.json())
+  // GeoJSON laden
+  fetch('https://raw.githubusercontent.com/Benne2000/CustomGeoMap/main/BaWue.geojson')
+    .then(res => res.json())
     .then(data => {
-      L.geoJSON(data, {
+      const layer = L.geoJSON(data, {
         style: {
           color: "darkgreen",
           weight: 1,
           fillOpacity: 0.4
         }
       }).addTo(map);
+
+      map.fitBounds(layer.getBounds());
     });
-}
 
-
-      L.geoJSON(polygon, {
-        style: { color: "blue", weight: 2, fillOpacity: 0.4 }
-      }).addTo(map);
+  // Beispiel-Polygon (optional)
+  const polygon = {
+    "type": "Feature",
+    "geometry": {
+      "type": "Polygon",
+      "coordinates": [[
+        [9.0, 48.3],
+        [9.1, 48.3],
+        [9.1, 48.4],
+        [9.0, 48.4],
+        [9.0, 48.3]
+      ]]
     }
+  };
+
+  L.geoJSON(polygon, {
+    style: { color: "blue", weight: 2, fillOpacity: 0.4 }
+  }).addTo(map);
+}
   }
 
   customElements.define('geo-map-widget', GeoMapWidget);
