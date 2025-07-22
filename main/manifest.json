@@ -1,0 +1,20 @@
+{
+  "id": "geoMapWidget",
+  "name": "Geo Map Widget",
+  "description": "Zeigt GeoJSON-Polygone auf einer Leaflet-Karte.",
+  "vendor": "MeinUnternehmen",
+  "version": "1.0.0",
+  "newInstancePrefix": "GeoMap",
+  "webcomponents": [
+    {
+      "kind": "main",
+      "tag": "geo-map-widget",
+      "url": "main.js",
+	"integrity": "sha384-Xuab7COP6pI4UZ3MNOfXcdD3KMiXDeYUfxaTMG4wdXcga5U/Jh/F0h3dQItouQ6i"
+
+    }
+  ],
+  "properties": {},
+  "methods": {},
+  "events": {}
+}
