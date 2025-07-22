@@ -44,7 +44,7 @@ initializeMap() {
   }).addTo(map);
 
   // ➕ Hier: GeoJSON-Datei laden und anzeigen
-  fetch('https://raw.githubusercontent.com/DEIN_USERNAME/DEIN_REPO/main/BaWue.geojson')
+  fetch('https://github.com/Benne2000/CustomGeoMap/main/BaWue.geojson')
     .then(response => response.json())
     .then(data => {
       L.geoJSON(data, {
