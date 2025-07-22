@@ -38,32 +38,26 @@
 
     initializeMap() {
       const mapContainer = this._shadowRoot.getElementById('map');
-      const map = L.map(mapContainer).setView([49.4, 8.7], 9);
+      const map = L.map(mapContainer).setView([49.4, 8.7], 10);
 
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap',
         maxZoom: 19
       }).addTo(map);
 
-      // 🔢 PLZ-Werte inkl. Heidelberg und Umgebung
+      // Fest definierte PLZ-Werte rund um Heidelberg
       const plzWerte = {
-        "69115": Math.floor(Math.random() * 2000),
-        "69117": Math.floor(Math.random() * 2000),
-        "69118": Math.floor(Math.random() * 2000),
-        "69120": Math.floor(Math.random() * 2000),
-        "69121": Math.floor(Math.random() * 2000),
-        "69123": Math.floor(Math.random() * 2000),
-        "69214": Math.floor(Math.random() * 2000),
-        "69226": Math.floor(Math.random() * 2000),
-        "69234": Math.floor(Math.random() * 2000),
-        "68519": Math.floor(Math.random() * 2000),
-        "69469": Math.floor(Math.random() * 2000),
-        "69245": Math.floor(Math.random() * 2000),
-        "69493": Math.floor(Math.random() * 2000),
-        "69151": Math.floor(Math.random() * 2000)
+        "69115": 1800,
+        "69117": 1200,
+        "69118": 800,
+        "69120": 300,
+        "69121": 50,
+        "69214": 1500,
+        "69226": 900,
+        "69234": 400
       };
 
-      // 🎨 Farbskala-Funktion
+      // Farbskala
       const getColor = value => {
         return value > 1500 ? "#08306b" :
                value > 1000 ? "#2171b5" :
@@ -72,21 +66,22 @@
                               "#f7fbff";
       };
 
-      // 📍 Standorte in und um Heidelberg
+      // Standort-Marker rund um Heidelberg
       const standorte = [
-        { name: "HD-Zentrum", lon: 8.694, lat: 49.409 },
-        { name: "Wieblingen", lon: 8.620, lat: 49.405 },
-        { name: "Kirchheim", lon: 8.650, lat: 49.375 },
+        { name: "Universität Heidelberg", lon: 8.674, lat: 49.417 },
+        { name: "Hauptbahnhof HD", lon: 8.690, lat: 49.398 },
+        { name: "Altstadt", lon: 8.708, lat: 49.414 },
         { name: "Leimen", lon: 8.693, lat: 49.340 },
         { name: "Schwetzingen", lon: 8.570, lat: 49.377 }
       ];
 
+      // GeoJSON laden + einfügen
       fetch('https://raw.githubusercontent.com/Benne2000/CustomGeoMap/main/BaWue.geojson')
         .then(res => res.json())
         .then(data => {
           const layer = L.geoJSON(data, {
             style: feature => {
-              const plz = feature.properties.plz || feature.properties.PLZ || "";
+              const plz = (feature.properties.plz || "").trim();
               const value = plzWerte[plz] || 0;
               return {
                 fillColor: getColor(value),
@@ -96,7 +91,7 @@
               };
             },
             onEachFeature: (feature, layer) => {
-              const plz = feature.properties.plz || feature.properties.PLZ || "";
+              const plz = (feature.properties.plz || "").trim();
               const value = plzWerte[plz] || "Keine Daten";
               layer.bindPopup(`PLZ: ${plz}<br>Wert: ${value}`);
             }
@@ -104,7 +99,7 @@
 
           map.fitBounds(layer.getBounds());
 
-          // 📌 Standortmarker hinzufügen
+          // Marker setzen
           standorte.forEach(s => {
             const marker = L.circleMarker([s.lat, s.lon], {
               radius: 6,
