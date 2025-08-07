@@ -1,6 +1,9 @@
-customElements.define("custom-dropdown", class extends HTMLElement {
-  // dein Code hier
+customElements.define('custom-input-control', class extends HTMLElement {
+  connectedCallback() {
+    this.innerHTML = `<select><option>Option 1</option></select>`;
+  }
 });
+
 
 // HTML
 <div id="customDropdown">
