@@ -1,3 +1,7 @@
+customElements.define("custom-dropdown", class extends HTMLElement {
+  // dein Code hier
+});
+
 // HTML
 <div id="customDropdown">
   <select id="dropdown">
