@@ -24,7 +24,6 @@
       });
       this._resizeObserver.observe(this);
 
-      // Initialisierung nach Registrierung
       this._initializeMap();
     }
 
@@ -33,19 +32,23 @@
     }
 
     async _initializeMap() {
-      await this._loadLeaflet();
+      try {
+        await this._loadLeaflet();
 
-      const mapDiv = this.querySelector("#map");
-      this._map = L.map(mapDiv).setView([51.1657, 10.4515], 6);
+        const mapDiv = this.querySelector("#map");
+        this._map = L.map(mapDiv).setView([51.1657, 10.4515], 6);
 
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: '&copy; OpenStreetMap contributors'
-      }).addTo(this._map);
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(this._map);
 
-      setTimeout(() => this._map.invalidateSize(), 300);
+        setTimeout(() => this._map.invalidateSize(), 300);
 
-      if (this._lastData) {
-        this.onCustomWidgetAfterUpdate({ data: this._lastData });
+        if (this._lastData) {
+          this.onCustomWidgetAfterUpdate({ data: this._lastData });
+        }
+      } catch (error) {
+        console.error("Fehler beim Initialisieren der Karte:", error);
       }
     }
 
@@ -60,8 +63,14 @@
 
         const script = document.createElement("script");
         script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
-        script.onload = resolve;
-        script.onerror = reject;
+        script.onload = () => {
+          console.log("Leaflet erfolgreich geladen.");
+          resolve();
+        };
+        script.onerror = () => {
+          console.error("Leaflet konnte nicht geladen werden.");
+          reject(new Error("Leaflet load failed"));
+        };
         document.head.appendChild(script);
       });
     }
@@ -108,5 +117,10 @@
   }
 
   // WICHTIG: Sofortige Registrierung
-  customElements.define("leaflet-map", LeafletMap);
+  try {
+    customElements.define("leaflet-map", LeafletMap);
+    console.log("Widget 'leaflet-map' erfolgreich registriert.");
+  } catch (e) {
+    console.error("Fehler bei der Widget-Registrierung:", e);
+  }
 })();
