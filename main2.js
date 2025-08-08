@@ -1,157 +1,83 @@
-(function () {
-  let template = document.createElement('template');
-  template.innerHTML = `
-    <style>
-      #map {
-        height: 100%;
-        width: 100%;
-        position: absolute;
-      }
-      .legend {
-        position: absolute;
-        bottom: 20px;
-        left: 20px;
-        background: white;
-        padding: 10px;
-        border: 1px solid #999;
-        font-family: sans-serif;
-        font-size: 12px;
-        line-height: 18px;
-        color: #333;
-      }
-      .legend i {
-        width: 18px;
-        height: 18px;
-        float: left;
-        margin-right: 8px;
-        opacity: 0.8;
-      }
-    </style>
-    <div id="map"></div>
-    <div class="legend" id="legend"></div>
-  `;
+class GeoMapWidget extends HTMLElement {
+  constructor() {
+    super();
+    this._shadowRoot = this.attachShadow({ mode: "open" });
+    this._shadowRoot.innerHTML = `<div id="map" style="width: 100%; height: 100%;"></div>`;
+    this._map = null;
+    this._geoJsonLayer = null;
+    this._data = null;
+    this._plzDimension = "PLZ";
+    this._valueMeasure = "Wert";
+  }
 
-  class GeoMapWidget extends HTMLElement {
-    constructor() {
-      super();
-      this._shadowRoot = this.attachShadow({ mode: 'open' });
-      this._shadowRoot.appendChild(template.content.cloneNode(true));
-      this.map = null;
-      this.geoData = null;
+  // Initialisierung nach dem Laden
+  connectedCallback() {
+    this._map = L.map(this._shadowRoot.getElementById("map")).setView([51.1657, 10.4515], 6); // Deutschland-Zentrum
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "© OpenStreetMap contributors"
+    }).addTo(this._map);
+  }
+
+  // Datenbindung aus SAC
+  onCustomWidgetBeforeUpdate(changedProps) {
+    if (changedProps.plzDimension) {
+      this._plzDimension = changedProps.plzDimension;
     }
-
-    connectedCallback() {
-      if (!window.L) {
-        const link = document.createElement('link');
-        link.rel = 'stylesheet';
-        link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-
-        const script = document.createElement('script');
-        script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-        script.onload = () => this.initializeMap();
-
-        this._shadowRoot.appendChild(link);
-        this._shadowRoot.appendChild(script);
-      } else {
-        this.initializeMap();
-      }
+    if (changedProps.valueMeasure) {
+      this._valueMeasure = changedProps.valueMeasure;
     }
+    if (changedProps.data) {
+      this._data = changedProps.data.data;
+      this.updateMap();
+    }
+  }
 
-    initializeMap() {
-      const mapContainer = this._shadowRoot.getElementById('map');
-      this.map = L.map(mapContainer).setView([49.4, 8.7], 8);
+  // Hauptfunktion zur Verarbeitung und Darstellung
+  updateMap() {
+    if (!this._data || !Array.isArray(this._data)) return;
 
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap',
-        maxZoom: 19
-      }).addTo(this.map);
-
-      fetch('https://raw.githubusercontent.com/Benne2000/CustomGeoMap/main/BaWue.geojson')
-        .then(res => res.json())
-        .then(data => {
-          this.geoData = data;
-          this.tryRender();
+    // Beispiel: GeoJSON laden (kann auch extern geladen werden)
+    fetch("https://benne2000.github.io/CustomGeoMap/plz.geojson")
+      .then(response => response.json())
+      .then(geojson => {
+        const enrichedFeatures = geojson.features.map(feature => {
+          const plz = feature.properties.plz;
+          const match = this._data.find(row => row[this._plzDimension]?.displayValue === plz);
+          const value = match ? parseFloat(match[this._valueMeasure]?.rawValue || 0) : 0;
+          feature.properties.value = value;
+          return feature;
         });
 
-      const resizeObserver = new ResizeObserver(() => {
-        if (this.map) {
-          this.map.invalidateSize();
+        if (this._geoJsonLayer) {
+          this._map.removeLayer(this._geoJsonLayer);
         }
-      });
-      resizeObserver.observe(this._shadowRoot.host);
-    }
 
-    onCustomWidgetBeforeUpdate(changedProps) {
-      if (changedProps.data) {
-        this.sacData = changedProps.data.data;
-        this.tryRender();
-      }
-    }
-
-    tryRender() {
-      if (this.geoData && this.sacData && this.map) {
-        this.processSACData(this.sacData);
-      }
-    }
-
-    processSACData(data) {
-      const plzKey = this.getAttribute("plzDimension") || "PLZ";
-      const valueKey = this.getAttribute("valueMeasure") || "Wert";
-
-      const plzWerte = {};
-      data.forEach(row => {
-        const plz = row[plzKey]?.id || row[plzKey]?.description || "";
-        const value = parseFloat(row[valueKey]?.rawValue || 0);
-        if (plz) {
-          plzWerte[plz.trim()] = value;
-        }
-      });
-
-      this.renderMap(plzWerte);
-    }
-
-    renderMap(plzWerte) {
-      const getColor = value => {
-        return value > 10000 ? "#08306b" :
-               value > 5000  ? "#2171b5" :
-               value > 1000  ? "#6baed6" :
-               value > 100   ? "#c6dbef" :
-                               "#f7fbff";
-      };
-
-      const layer = L.geoJSON(this.geoData, {
-        style: feature => {
-          const plz = (feature.properties.plz || "").trim();
-          const value = plzWerte[plz] || 0;
-          return {
-            fillColor: getColor(value),
-            color: "white",
+        this._geoJsonLayer = L.geoJSON(enrichedFeatures, {
+          style: feature => ({
+            fillColor: this.getColor(feature.properties.value),
             weight: 1,
-            fillOpacity: 0.8
-          };
-        },
-        onEachFeature: (feature, layer) => {
-          const plz = (feature.properties.plz || "").trim();
-          const value = plzWerte[plz] ?? "Keine Daten";
-          layer.bindPopup(`PLZ: ${plz}<br>Wert: ${value}`);
-        }
-      }).addTo(this.map);
-
-      this.map.fitBounds(layer.getBounds());
-
-      const legendContainer = this._shadowRoot.getElementById('legend');
-      legendContainer.innerHTML = `
-        <strong>Wert (PLZ)</strong><br>
-        <i style="background:#08306b"></i> > 10.000<br>
-        <i style="background:#2171b5"></i> > 5.000<br>
-        <i style="background:#6baed6"></i> > 1.000<br>
-        <i style="background:#c6dbef"></i> > 100<br>
-        <i style="background:#f7fbff"></i> ≤ 100
-      `;
-    }
+            opacity: 1,
+            color: "white",
+            fillOpacity: 0.7
+          }),
+          onEachFeature: (feature, layer) => {
+            layer.bindPopup(`PLZ: ${feature.properties.plz}<br>Wert: ${feature.properties.value}`);
+          }
+        }).addTo(this._map);
+      });
   }
 
-  if (!customElements.get('geo-map-widget')) {
-    customElements.define('geo-map-widget', GeoMapWidget);
+  // Farbskala basierend auf Wert
+  getColor(value) {
+    return value > 1000 ? "#800026" :
+           value > 500  ? "#BD0026" :
+           value > 200  ? "#E31A1C" :
+           value > 100  ? "#FC4E2A" :
+           value > 50   ? "#FD8D3C" :
+           value > 20   ? "#FEB24C" :
+           value > 10   ? "#FED976" :
+                         "#FFEDA0";
   }
-})();
+}
+
+customElements.define("geo-map-widget", GeoMapWidget);
