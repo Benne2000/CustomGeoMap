@@ -1,128 +1,133 @@
-class GeoMapWidget extends HTMLElement {
-  constructor() {
-    super();
-    this._shadowRoot = this.attachShadow({ mode: "open" });
-    this._shadowRoot.innerHTML = `<div id="map" style="width: 100%; height: 100%;"></div>`;
-    this._map = null;
-    this._geoJsonLayer = null;
-    this._geo = null; // Cache für GeoJSON
-    this._myDataSource = null;
+(() => {
+  const LEAFLET_CSS = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+  const LEAFLET_JS = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
 
-    // Konfig: Name des GeoJSON-Properties, das die PLZ trägt
-    this._plzPropertyName = "plz";
-  }
+  function loadLeaflet() {
+    if (window.L) return Promise.resolve();
+    if (window.__leafletLoading) return window.__leafletLoading;
 
-  connectedCallback() {
-    // Hinweis: Falls Leaflet nicht global verfügbar ist, ggf. hier laden.
-    // Wir gehen davon aus, dass L vorhanden ist.
-    this._map = L.map(this._shadowRoot.getElementById("map")).setView([51.1657, 10.4515], 6);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "© OpenStreetMap contributors"
-    }).addTo(this._map);
+    window.__leafletLoading = new Promise((resolve, reject) => {
+      const css = document.createElement("link");
+      css.rel = "stylesheet";
+      css.href = LEAFLET_CSS;
+      css.crossOrigin = "anonymous";
+      document.head.appendChild(css);
 
-    // Erste Darstellung, falls Daten später kommen.
-    this._ensureGeo().then(() => this._renderLayer(new Map()));
-  }
-
-  onCustomWidgetResize() {
-    if (this._map) this._map.invalidateSize();
-  }
-
-  // Properties aus dem Manifest (optional)
-  onCustomWidgetBeforeUpdate(changedProps) {
-    if (changedProps.plzPropertyName) {
-      this._plzPropertyName = changedProps.plzPropertyName;
-      this._updateFromDataBinding(); // neu rendern mit neuem Property-Namen
-    }
-  }
-
-  // SAC-Datenbindung: wird vom SAC Runtime gesetzt
-  set myDataSource(dataBinding) {
-    this._myDataSource = dataBinding;
-    this._updateFromDataBinding();
-  }
-
-  async _updateFromDataBinding() {
-    if (!this._myDataSource || this._myDataSource.state !== "success") return;
-
-    // Keys der Feeds (Dimension/Kennzahl), so wie bei deinem ECharts-Beispiel
-    const dimKey = this._myDataSource.metadata?.feeds?.dimensions?.values?.[0];
-    const measureKey = this._myDataSource.metadata?.feeds?.measures?.values?.[0];
-    if (!dimKey || !measureKey) return;
-
-    const rows = Array.isArray(this._myDataSource.data) ? this._myDataSource.data : [];
-
-    // Map: PLZ (Label) -> aggregierter Wert
-    const valueByPlz = new Map();
-    for (const row of rows) {
-      const plzLabel = row[dimKey]?.label != null ? String(row[dimKey].label).trim() : null;
-      const raw = row[measureKey]?.raw != null ? Number(row[measureKey].raw) : 0;
-      if (!plzLabel) continue;
-
-      // Aggregation (Summe), falls mehrere Zeilen je PLZ
-      const current = valueByPlz.get(plzLabel) ?? 0;
-      valueByPlz.set(plzLabel, current + raw);
-    }
-
-    await this._ensureGeo();
-    this._renderLayer(valueByPlz);
-  }
-
-  async _ensureGeo() {
-    if (this._geo) return;
-    const resp = await fetch("https://raw.githubusercontent.com/Benne2000/CustomGeoMap/main/BaWue.geojson");
-    this._geo = await resp.json();
-  }
-
-  _renderLayer(valueByPlz) {
-    if (!this._map || !this._geo) return;
-
-    // Enriched FeatureCollection erzeugen (mutationsfrei)
-    const features = this._geo.features.map(f => {
-      const plz = f.properties?.[this._plzPropertyName] != null
-        ? String(f.properties[this._plzPropertyName]).trim()
-        : "";
-      const value = valueByPlz.get(plz) ?? 0;
-      return {
-        ...f,
-        properties: {
-          ...f.properties,
-          value
-        }
-      };
+      const script = document.createElement("script");
+      script.src = LEAFLET_JS;
+      script.defer = true;
+      script.crossOrigin = "anonymous";
+      script.onload = () => resolve();
+      script.onerror = () => reject("Leaflet konnte nicht geladen werden.");
+      document.head.appendChild(script);
     });
 
-    if (this._geoJsonLayer) {
-      this._map.removeLayer(this._geoJsonLayer);
+    return window.__leafletLoading;
+  }
+
+  class GeoMapWidget extends HTMLElement {
+    constructor() {
+      super();
+      this._shadowRoot = this.attachShadow({ mode: "open" });
+      this._shadowRoot.innerHTML = `<div id="map" style="width:100%;height:100%;"></div>`;
+      this._map = null;
+      this._layer = null;
+      this._geo = null;
+      this._plzPropertyName = "plz";
+      this._dataSource = null;
     }
 
-    this._geoJsonLayer = L.geoJSON({ type: "FeatureCollection", features }, {
-      style: feature => ({
-        fillColor: this._getColor(feature.properties.value),
-        weight: 1,
-        opacity: 1,
-        color: "white",
-        fillOpacity: 0.7
-      }),
-      onEachFeature: (feature, layer) => {
-        layer.bindPopup(
-          `PLZ: ${feature.properties[this._plzPropertyName] ?? "-"}<br>` +
-          `Wert: ${feature.properties.value}`
-        );
+    connectedCallback() {
+      this.style.display = "block";
+      if (!this.style.height) this.style.height = "400px";
+      loadLeaflet().then(() => this._initMap());
+    }
+
+    onCustomWidgetResize() {
+      if (this._map) this._map.invalidateSize();
+    }
+
+    onCustomWidgetBeforeUpdate(changedProps) {
+      if (changedProps.plzPropertyName) {
+        this._plzPropertyName = changedProps.plzPropertyName;
+        this._updateLayer();
       }
-    }).addTo(this._map);
+    }
+
+    set myDataSource(binding) {
+      this._dataSource = binding;
+      this._updateLayer();
+    }
+
+    async _initMap() {
+      const container = this._shadowRoot.getElementById("map");
+      this._map = L.map(container).setView([51.1657, 10.4515], 6);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: "© OpenStreetMap contributors",
+        maxZoom: 18
+      }).addTo(this._map);
+
+      await this._loadGeoJSON();
+      this._updateLayer();
+    }
+
+    async _loadGeoJSON() {
+      if (this._geo) return;
+      const res = await fetch("https://raw.githubusercontent.com/Benne2000/CustomGeoMap/main/BaWue.geojson", {
+        cache: "no-store"
+      });
+      this._geo = await res.json();
+    }
+
+    _updateLayer() {
+      if (!this._map || !this._geo || !this._dataSource || this._dataSource.state !== "success") return;
+
+      const dim = this._dataSource.metadata?.feeds?.dimensions?.values?.[0];
+      const meas = this._dataSource.metadata?.feeds?.measures?.values?.[0];
+      if (!dim || !meas) return;
+
+      const values = new Map();
+      for (const row of this._dataSource.data || []) {
+        const plz = row[dim]?.label?.trim();
+        const val = Number(row[meas]?.raw || 0);
+        if (plz) values.set(plz, (values.get(plz) || 0) + val);
+      }
+
+      const features = this._geo.features.map(f => {
+        const plz = String(f.properties?.[this._plzPropertyName] || "").trim();
+        const value = values.get(plz) || 0;
+        return {
+          ...f,
+          properties: { ...f.properties, value }
+        };
+      });
+
+      if (this._layer) this._map.removeLayer(this._layer);
+      this._layer = L.geoJSON({ type: "FeatureCollection", features }, {
+        style: f => ({
+          fillColor: this._color(f.properties.value),
+          weight: 1,
+          color: "white",
+          fillOpacity: 0.7
+        }),
+        onEachFeature: (f, layer) => {
+          layer.bindPopup(`PLZ: ${f.properties[this._plzPropertyName]}<br>Wert: ${f.properties.value}`);
+        }
+      }).addTo(this._map);
+    }
+
+    _color(v) {
+      return v > 1000 ? "#800026" :
+             v > 500  ? "#BD0026" :
+             v > 200  ? "#E31A1C" :
+             v > 100  ? "#FC4E2A" :
+             v > 50   ? "#FD8D3C" :
+             v > 20   ? "#FEB24C" :
+             v > 10   ? "#FED976" : "#FFEDA0";
+    }
   }
 
-  _getColor(value) {
-    return value > 1000 ? "#800026" :
-           value > 500  ? "#BD0026" :
-           value > 200  ? "#E31A1C" :
-           value > 100  ? "#FC4E2A" :
-           value > 50   ? "#FD8D3C" :
-           value > 20   ? "#FEB24C" :
-           value > 10   ? "#FED976" :
-                         "#FFEDA0";
+  if (!customElements.get("geo-map-widget")) {
+    customElements.define("geo-map-widget", GeoMapWidget);
   }
-}
-
-customElements.define("geo-map-widget", GeoMapWidget);
+})();
