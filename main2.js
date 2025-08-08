@@ -33,21 +33,35 @@
 
       this.innerHTML = `<div id="map" style="width:100%;height:100%;position:absolute;top:0;left:0;"></div>`;
 
-      loadLeaflet().then(() => {
-        this._initMap();
+      const waitForVisibleSize = () => {
+        const rect = this.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      };
 
-        // Verzögertes invalidateSize nach Initialisierung
-        setTimeout(() => {
-          if (this._map) this._map.invalidateSize();
-        }, 300);
-      });
+      const tryInit = () => {
+        if (waitForVisibleSize()) {
+          loadLeaflet().then(() => {
+            this._initMap();
 
-      this._resizeObserver = new ResizeObserver(() => {
-        if (this._map) {
-          setTimeout(() => this._map.invalidateSize(), 100);
+            // Verzögertes invalidateSize nach Initialisierung
+            setTimeout(() => {
+              if (this._map) this._map.invalidateSize();
+            }, 300);
+          });
+
+          this._resizeObserver = new ResizeObserver(() => {
+            if (this._map) {
+              setTimeout(() => this._map.invalidateSize(), 100);
+            }
+          });
+          this._resizeObserver.observe(this);
+        } else {
+          // Wiederhole bis sichtbar
+          setTimeout(tryInit, 100);
         }
-      });
-      this._resizeObserver.observe(this);
+      };
+
+      tryInit();
     }
 
     disconnectedCallback() {
