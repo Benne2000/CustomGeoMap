@@ -13,21 +13,19 @@
       if (this._initialized) return;
       this._initialized = true;
 
-      // Grundstruktur setzen
       this.style.display = "block";
       if (!this.style.height) this.style.height = "400px";
       this.innerHTML = `<div id="map" style="width:100%;height:100%;position:absolute;top:0;left:0;"></div>`;
 
-      // Resize-Handling
       this._resizeObserver = new ResizeObserver(() => {
         if (this._map) {
-          setTimeout(() => this._map.invalidateSize(), 100);
+          this._map.invalidateSize();
         }
       });
       this._resizeObserver.observe(this);
 
-      // Initialisierung verzögern, um SAC-Timeout zu vermeiden
-      setTimeout(() => this._initializeMap(), 0);
+      // Initialisierung nach Registrierung
+      this._initializeMap();
     }
 
     disconnectedCallback() {
@@ -35,24 +33,20 @@
     }
 
     async _initializeMap() {
-      await this._waitForVisibleSize();
       await this._loadLeaflet();
-      this._initMap();
-    }
 
-    _waitForVisibleSize() {
-      return new Promise(resolve => {
-        const check = () => {
-          const rect = this.getBoundingClientRect();
-          const visible = rect.width > 50 && rect.height > 50;
-          if (visible) {
-            resolve();
-          } else {
-            setTimeout(check, 100);
-          }
-        };
-        check();
-      });
+      const mapDiv = this.querySelector("#map");
+      this._map = L.map(mapDiv).setView([51.1657, 10.4515], 6);
+
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(this._map);
+
+      setTimeout(() => this._map.invalidateSize(), 300);
+
+      if (this._lastData) {
+        this.onCustomWidgetAfterUpdate({ data: this._lastData });
+      }
     }
 
     _loadLeaflet() {
@@ -72,24 +66,9 @@
       });
     }
 
-    _initMap() {
-      const mapDiv = this.querySelector("#map");
-      this._map = L.map(mapDiv).setView([51.1657, 10.4515], 6);
-
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: '&copy; OpenStreetMap contributors'
-      }).addTo(this._map);
-
-      setTimeout(() => this._map.invalidateSize(), 300);
-
-      if (this._lastData) {
-        this.onCustomWidgetAfterUpdate({ data: this._lastData });
-      }
-    }
-
     onCustomWidgetResize() {
       if (this._map) {
-        setTimeout(() => this._map.invalidateSize(), 100);
+        this._map.invalidateSize();
       }
     }
 
@@ -128,6 +107,6 @@
     }
   }
 
-  // Sofort definieren, um SAC-Timeout zu vermeiden
+  // WICHTIG: Sofortige Registrierung
   customElements.define("leaflet-map", LeafletMap);
 })();
