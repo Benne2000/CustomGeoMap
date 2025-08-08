@@ -5,7 +5,7 @@
       this._map = null;
       this._markers = [];
       this._resizeObserver = null;
-      this._leafletReady = false;
+      this._lastData = null;
     }
 
     connectedCallback() {
@@ -32,7 +32,8 @@
       return new Promise(resolve => {
         const check = () => {
           const rect = this.getBoundingClientRect();
-          if (rect.width > 0 && rect.height > 0) {
+          const visible = rect.width > 50 && rect.height > 50;
+          if (visible) {
             resolve();
           } else {
             setTimeout(check, 100);
@@ -43,7 +44,7 @@
     }
 
     _loadLeaflet() {
-      if (window.L) return Promise.resolve(); // schon geladen
+      if (window.L) return Promise.resolve();
 
       return new Promise((resolve, reject) => {
         const link = document.createElement("link");
@@ -61,14 +62,17 @@
 
     _initMap() {
       const mapDiv = this.querySelector("#map");
-      this._map = L.map(mapDiv).setView([51.1657, 10.4515], 6); // Deutschland-Zentrum
+      this._map = L.map(mapDiv).setView([51.1657, 10.4515], 6);
 
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution: '&copy; OpenStreetMap contributors'
       }).addTo(this._map);
 
-      // WICHTIG: invalidateSize nach Initialisierung
       setTimeout(() => this._map.invalidateSize(), 300);
+
+      if (this._lastData) {
+        this.onCustomWidgetAfterUpdate({ data: this._lastData });
+      }
     }
 
     onCustomWidgetResize() {
@@ -81,13 +85,13 @@
 
     onCustomWidgetAfterUpdate(changedProps) {
       if (!this._map || !changedProps.data) return;
+      this._lastData = changedProps.data;
 
       const data = changedProps.data;
       const latIndex = data.metadata.feeds.lat.values[0];
       const lonIndex = data.metadata.feeds.lon.values[0];
       const labelIndex = data.metadata.feeds.label.values[0];
 
-      // Alte Marker entfernen
       this._markers.forEach(m => m.remove());
       this._markers = [];
 
@@ -112,6 +116,5 @@
     }
   }
 
-  // WICHTIG: Widget sofort registrieren
   customElements.define("leaflet-map", LeafletMap);
 })();
