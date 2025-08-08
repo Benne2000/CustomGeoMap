@@ -28,8 +28,6 @@
   class GeoMapWidget extends HTMLElement {
     constructor() {
       super();
-      this._shadowRoot = this.attachShadow({ mode: "open" });
-      this._shadowRoot.innerHTML = `<div id="map" style="width:100%;height:100%;"></div>`;
       this._map = null;
       this._layer = null;
       this._geo = null;
@@ -39,7 +37,10 @@
 
     connectedCallback() {
       this.style.display = "block";
+      this.style.position = "relative";
       if (!this.style.height) this.style.height = "400px";
+
+      this.innerHTML = `<div id="map" style="width:100%;height:100%;position:absolute;top:0;left:0;"></div>`;
       loadLeaflet().then(() => this._initMap());
     }
 
@@ -60,8 +61,8 @@
     }
 
     async _initMap() {
-      const container = this._shadowRoot.getElementById("map");
-      this._map = L.map(container).setView([49.4, 8.7], 10); // ✅ Moderater Zoom
+      const container = this.querySelector("#map");
+      this._map = L.map(container).setView([49.4, 8.7], 10);
 
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution: "© OpenStreetMap contributors",
@@ -84,7 +85,7 @@
       if (!this._map || !this._geo) return;
 
       if (!this._dataSource || this._dataSource.state !== "success") {
-        this._updateLayerWithoutData(); // ✅ Fallback ohne Datenbindung
+        this._updateLayerWithoutData();
         return;
       }
 
@@ -121,7 +122,7 @@
         }
       }).addTo(this._map);
 
-      this._map.fitBounds(this._layer.getBounds()); // ✅ fitBounds für saubere Darstellung
+      this._map.fitBounds(this._layer.getBounds());
     }
 
     _updateLayerWithoutData() {
@@ -140,7 +141,7 @@
         }
       }).addTo(this._map);
 
-      this._map.fitBounds(this._layer.getBounds()); // ✅ auch hier fitBounds
+      this._map.fitBounds(this._layer.getBounds());
     }
 
     _color(v) {
