@@ -61,7 +61,8 @@
 
     async _initMap() {
       const container = this._shadowRoot.getElementById("map");
-      this._map = L.map(container).setView([51.1657, 10.4515], 6);
+      this._map = L.map(container).setView([49.4, 8.7], 10); // ✅ Moderater Zoom
+
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution: "© OpenStreetMap contributors",
         maxZoom: 18
@@ -80,7 +81,12 @@
     }
 
     _updateLayer() {
-      if (!this._map || !this._geo || !this._dataSource || this._dataSource.state !== "success") return;
+      if (!this._map || !this._geo) return;
+
+      if (!this._dataSource || this._dataSource.state !== "success") {
+        this._updateLayerWithoutData(); // ✅ Fallback ohne Datenbindung
+        return;
+      }
 
       const dim = this._dataSource.metadata?.feeds?.dimensions?.values?.[0];
       const meas = this._dataSource.metadata?.feeds?.measures?.values?.[0];
@@ -88,13 +94,13 @@
 
       const values = new Map();
       for (const row of this._dataSource.data || []) {
-        const plz = row[dim]?.label?.trim();
+        const plz = String(row[dim]?.label || "").trim().replace(/^0+/, "");
         const val = Number(row[meas]?.raw || 0);
         if (plz) values.set(plz, (values.get(plz) || 0) + val);
       }
 
       const features = this._geo.features.map(f => {
-        const plz = String(f.properties?.[this._plzPropertyName] || "").trim();
+        const plz = String(f.properties?.[this._plzPropertyName] || "").trim().replace(/^0+/, "");
         const value = values.get(plz) || 0;
         return {
           ...f,
@@ -114,6 +120,27 @@
           layer.bindPopup(`PLZ: ${f.properties[this._plzPropertyName]}<br>Wert: ${f.properties.value}`);
         }
       }).addTo(this._map);
+
+      this._map.fitBounds(this._layer.getBounds()); // ✅ fitBounds für saubere Darstellung
+    }
+
+    _updateLayerWithoutData() {
+      if (!this._map || !this._geo) return;
+
+      if (this._layer) this._map.removeLayer(this._layer);
+      this._layer = L.geoJSON(this._geo, {
+        style: {
+          fillColor: "#cccccc",
+          weight: 1,
+          color: "#666",
+          fillOpacity: 0.5
+        },
+        onEachFeature: (f, layer) => {
+          layer.bindPopup(`PLZ: ${f.properties?.[this._plzPropertyName] || "?"}`);
+        }
+      }).addTo(this._map);
+
+      this._map.fitBounds(this._layer.getBounds()); // ✅ auch hier fitBounds
     }
 
     _color(v) {
