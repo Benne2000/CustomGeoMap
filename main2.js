@@ -6,14 +6,19 @@
       this._markers = [];
       this._resizeObserver = null;
       this._lastData = null;
+      this._initialized = false;
     }
 
     connectedCallback() {
+      if (this._initialized) return;
+      this._initialized = true;
+
+      // Grundstruktur setzen
       this.style.display = "block";
       if (!this.style.height) this.style.height = "400px";
-
       this.innerHTML = `<div id="map" style="width:100%;height:100%;position:absolute;top:0;left:0;"></div>`;
 
+      // Resize-Handling
       this._resizeObserver = new ResizeObserver(() => {
         if (this._map) {
           setTimeout(() => this._map.invalidateSize(), 100);
@@ -21,11 +26,18 @@
       });
       this._resizeObserver.observe(this);
 
-      this._waitForVisibleSize().then(() => this._loadLeaflet().then(() => this._initMap()));
+      // Initialisierung verzögern, um SAC-Timeout zu vermeiden
+      setTimeout(() => this._initializeMap(), 0);
     }
 
     disconnectedCallback() {
       if (this._resizeObserver) this._resizeObserver.disconnect();
+    }
+
+    async _initializeMap() {
+      await this._waitForVisibleSize();
+      await this._loadLeaflet();
+      this._initMap();
     }
 
     _waitForVisibleSize() {
@@ -116,5 +128,6 @@
     }
   }
 
+  // Sofort definieren, um SAC-Timeout zu vermeiden
   customElements.define("leaflet-map", LeafletMap);
 })();
