@@ -6,17 +6,11 @@
         height: 100%;
         width: 100%;
         position: absolute;
-        top: 0;
-        bottom: 0;
-        left: 0;
-        right: 0;
       }
-
       .legend {
         position: absolute;
         bottom: 20px;
         left: 20px;
-        z-index: 1000;
         background: white;
         padding: 10px;
         border: 1px solid #999;
@@ -25,7 +19,6 @@
         line-height: 18px;
         color: #333;
       }
-
       .legend i {
         width: 18px;
         height: 18px;
@@ -62,22 +55,11 @@
       } else {
         this.initializeMap();
       }
-
-      this.addEventListener("dataChanged", e => {
-        this.processSACData(e.detail.data);
-      });
-
-      this.dispatchEvent(new CustomEvent("getData", {
-        detail: {
-          onSuccess: data => this.processSACData(data),
-          onError: err => console.error("Fehler beim Laden der Daten", err)
-        }
-      }));
     }
 
     initializeMap() {
       const mapContainer = this._shadowRoot.getElementById('map');
-      this.map = L.map(mapContainer).setView([49.4, 8.7], 10);
+      this.map = L.map(mapContainer).setView([49.4, 8.7], 8);
 
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap',
@@ -88,6 +70,7 @@
         .then(res => res.json())
         .then(data => {
           this.geoData = data;
+          this.tryRender();
         });
 
       const resizeObserver = new ResizeObserver(() => {
@@ -96,6 +79,19 @@
         }
       });
       resizeObserver.observe(this._shadowRoot.host);
+    }
+
+    onCustomWidgetBeforeUpdate(changedProps) {
+      if (changedProps.data) {
+        this.sacData = changedProps.data.data;
+        this.tryRender();
+      }
+    }
+
+    tryRender() {
+      if (this.geoData && this.sacData && this.map) {
+        this.processSACData(this.sacData);
+      }
     }
 
     processSACData(data) {
@@ -111,9 +107,7 @@
         }
       });
 
-      if (this.geoData && this.map) {
-        this.renderMap(plzWerte);
-      }
+      this.renderMap(plzWerte);
     }
 
     renderMap(plzWerte) {
