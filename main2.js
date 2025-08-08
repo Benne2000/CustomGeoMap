@@ -44,6 +44,7 @@
       this._shadowRoot = this.attachShadow({ mode: 'open' });
       this._shadowRoot.appendChild(template.content.cloneNode(true));
       this.map = null;
+      this.geoData = null;
     }
 
     connectedCallback() {
@@ -61,6 +62,17 @@
       } else {
         this.initializeMap();
       }
+
+      this.addEventListener("dataChanged", e => {
+        this.processSACData(e.detail.data);
+      });
+
+      this.dispatchEvent(new CustomEvent("getData", {
+        detail: {
+          onSuccess: data => this.processSACData(data),
+          onError: err => console.error("Fehler beim Laden der Daten", err)
+        }
+      }));
     }
 
     initializeMap() {
@@ -72,57 +84,11 @@
         maxZoom: 19
       }).addTo(this.map);
 
-      const getColor = value => {
-        return value > 10000 ? "#08306b" :
-               value > 5000  ? "#2171b5" :
-               value > 1000  ? "#6baed6" :
-               value > 100   ? "#c6dbef" :
-                               "#f7fbff";
-      };
-
-      // 🔄 Erst PLZ-Werte laden, dann GeoJSON
-      Promise.all([
-        fetch('https://benne2000.github.io/CustomGeoMap/plzWerte.json').then(res => res.json()),
-        fetch('https://raw.githubusercontent.com/Benne2000/CustomGeoMap/main/BaWue.geojson').then(res => res.json())
-      ]).then(([plzWerte, geoData]) => {
-        const layer = L.geoJSON(geoData, {
-          style: feature => {
-            const plz = (feature.properties.plz || "").trim();
-            const value = plzWerte[plz] || 0;
-            return {
-              fillColor: getColor(value),
-              color: "white",
-              weight: 1,
-              fillOpacity: 0.8
-            };
-          },
-          onEachFeature: (feature, layer) => {
-            const plz = (feature.properties.plz || "").trim();
-            const value = plzWerte[plz] || "Keine Daten";
-            layer.bindPopup(`PLZ: ${plz}<br>Wert: ${value}`);
-          }
-        }).addTo(this.map);
-
-        this.map.fitBounds(layer.getBounds());
-
-        const marker = L.circleMarker([49.4067, 8.6585], {
-          radius: 6,
-          color: "red",
-          fillColor: "red",
-          fillOpacity: 0.9
-        }).addTo(this.map);
-        marker.bindPopup("BAUHAUS Heidelberg");
-
-        const legendContainer = this._shadowRoot.getElementById('legend');
-        legendContainer.innerHTML = `
-          <strong>Wert (PLZ)</strong><br>
-          <i style="background:#08306b"></i> > 10.000<br>
-          <i style="background:#2171b5"></i> > 5.000<br>
-          <i style="background:#6baed6"></i> > 1.000<br>
-          <i style="background:#c6dbef"></i> > 100<br>
-          <i style="background:#f7fbff"></i> ≤ 100
-        `;
-      });
+      fetch('https://raw.githubusercontent.com/Benne2000/CustomGeoMap/main/BaWue.geojson')
+        .then(res => res.json())
+        .then(data => {
+          this.geoData = data;
+        });
 
       const resizeObserver = new ResizeObserver(() => {
         if (this.map) {
@@ -131,9 +97,67 @@
       });
       resizeObserver.observe(this._shadowRoot.host);
     }
+
+    processSACData(data) {
+      const plzKey = this.getAttribute("plzDimension") || "PLZ";
+      const valueKey = this.getAttribute("valueMeasure") || "Wert";
+
+      const plzWerte = {};
+      data.forEach(row => {
+        const plz = row[plzKey]?.id || row[plzKey]?.description || "";
+        const value = parseFloat(row[valueKey]?.rawValue || 0);
+        if (plz) {
+          plzWerte[plz.trim()] = value;
+        }
+      });
+
+      if (this.geoData && this.map) {
+        this.renderMap(plzWerte);
+      }
+    }
+
+    renderMap(plzWerte) {
+      const getColor = value => {
+        return value > 10000 ? "#08306b" :
+               value > 5000  ? "#2171b5" :
+               value > 1000  ? "#6baed6" :
+               value > 100   ? "#c6dbef" :
+                               "#f7fbff";
+      };
+
+      const layer = L.geoJSON(this.geoData, {
+        style: feature => {
+          const plz = (feature.properties.plz || "").trim();
+          const value = plzWerte[plz] || 0;
+          return {
+            fillColor: getColor(value),
+            color: "white",
+            weight: 1,
+            fillOpacity: 0.8
+          };
+        },
+        onEachFeature: (feature, layer) => {
+          const plz = (feature.properties.plz || "").trim();
+          const value = plzWerte[plz] ?? "Keine Daten";
+          layer.bindPopup(`PLZ: ${plz}<br>Wert: ${value}`);
+        }
+      }).addTo(this.map);
+
+      this.map.fitBounds(layer.getBounds());
+
+      const legendContainer = this._shadowRoot.getElementById('legend');
+      legendContainer.innerHTML = `
+        <strong>Wert (PLZ)</strong><br>
+        <i style="background:#08306b"></i> > 10.000<br>
+        <i style="background:#2171b5"></i> > 5.000<br>
+        <i style="background:#6baed6"></i> > 1.000<br>
+        <i style="background:#c6dbef"></i> > 100<br>
+        <i style="background:#f7fbff"></i> ≤ 100
+      `;
+    }
   }
 
-if (!customElements.get('geo-map-widget')) {
-  customElements.define('geo-map-widget', GeoMapWidget);
-}
+  if (!customElements.get('geo-map-widget')) {
+    customElements.define('geo-map-widget', GeoMapWidget);
+  }
 })();
