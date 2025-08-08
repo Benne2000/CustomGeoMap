@@ -33,12 +33,21 @@
 
       this.innerHTML = `<div id="map" style="width:100%;height:100%;position:absolute;top:0;left:0;"></div>`;
 
+      loadLeaflet().then(() => {
+        this._initMap();
+
+        // Verzögertes invalidateSize nach Initialisierung
+        setTimeout(() => {
+          if (this._map) this._map.invalidateSize();
+        }, 300);
+      });
+
       this._resizeObserver = new ResizeObserver(() => {
-        if (this._map) this._map.invalidateSize();
+        if (this._map) {
+          setTimeout(() => this._map.invalidateSize(), 100);
+        }
       });
       this._resizeObserver.observe(this);
-
-      loadLeaflet().then(() => this._initMap());
     }
 
     disconnectedCallback() {
@@ -56,7 +65,7 @@
 
     onCustomWidgetResize() {
       if (this._map) {
-        setTimeout(() => this._map.invalidateSize(), 0);
+        setTimeout(() => this._map.invalidateSize(), 100);
       }
     }
 
@@ -70,7 +79,7 @@
       const lonIndex = data.metadata.feeds.lon.values[0];
       const labelIndex = data.metadata.feeds.label.values[0];
 
-      // Clear old markers
+      // Alte Marker entfernen
       this._markers.forEach(m => m.remove());
       this._markers = [];
 
