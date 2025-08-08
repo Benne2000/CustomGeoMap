@@ -33,7 +33,7 @@ class GeoMapWidget extends HTMLElement {
   updateMap() {
     if (!this._data || !Array.isArray(this._data)) return;
 
-    fetch("https://benne2000.github.io/CustomGeoMap/plz.geojson")
+    fetch("https://raw.githubusercontent.com/Benne2000/CustomGeoMap/main/BaWue.geojson")
       .then(response => response.json())
       .then(geojson => {
         const enrichedFeatures = geojson.features.map(feature => {
